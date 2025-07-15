@@ -1,0 +1,792 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Tabata Timer</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.7.77/Tone.js"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;900&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            touch-action: manipulation; /* Prevents double-tap zoom on mobile */
+        }
+        /* Custom styles for better UI feel */
+        .timer-display {
+            font-weight: 900;
+            line-height: 1;
+        }
+        .btn {
+            transition: all 0.2s ease;
+        }
+        .btn:active {
+            transform: scale(0.95);
+        }
+        input[type="number"]::-webkit-inner-spin-button,
+        input[type="number"]::-webkit-outer-spin-button {
+            -webkit-appearance: none;
+            margin: 0;
+        }
+        input[type="number"] {
+            -moz-appearance: textfield;
+        }
+        .hidden {
+            display: none;
+        }
+        .preset-btn.saving {
+            background-color: #f59e0b; /* amber-500 */
+        }
+        .preset-btn.saving:hover {
+            background-color: #d97706; /* amber-600 */
+        }
+    </style>
+</head>
+<body class="bg-gray-900 text-white flex items-center justify-center min-h-screen p-4">
+
+    <div class="w-full max-w-md mx-auto">
+        <!-- Main Timer View -->
+        <div id="timer-container" class="bg-gray-800 rounded-2xl shadow-2xl p-6 relative">
+            <!-- Timer Display -->
+            <div id="display-area" class="text-center mb-4 relative h-64 flex flex-col items-center justify-center bg-gray-900 rounded-xl">
+                <div id="timer-display-content" class="z-0">
+                    <div id="phase-display" class="text-2xl font-bold uppercase text-yellow-400 mb-2">Prepare</div>
+                    <div id="timer-display" class="text-8xl md:text-9xl timer-display text-green-400">00:00</div>
+                    <div id="progress-display" class="text-xl text-gray-400 mt-2">
+                        Round <span id="current-round">0</span>/<span id="total-rounds">8</span> |
+                        Set <span id="current-set">0</span>/<span id="total-sets">4</span>
+                    </div>
+                </div>
+                <div id="completion-message" class="z-10 hidden">
+                    <h2 class="text-4xl md:text-5xl font-extrabold text-green-400">Workout Completed!</h2>
+                </div>
+            </div>
+            
+            <!-- Exercise Display -->
+            <div id="exercise-display-container" class="text-center mb-4 p-3 bg-gray-700 rounded-lg">
+                <h4 class="text-sm font-semibold text-gray-400 uppercase">Current Exercise</h4>
+                <p id="exercise-display" class="text-xl font-bold text-white truncate">---</p>
+            </div>
+
+            <!-- Controls -->
+            <div id="controls-container" class="grid grid-cols-3 gap-4">
+                <button id="start-pause-btn" class="bg-green-500 hover:bg-green-600 text-white font-bold py-3 px-4 rounded-lg text-lg btn">Start</button>
+                <button id="reset-btn" class="bg-red-500 hover:bg-red-600 text-white font-bold py-3 px-4 rounded-lg text-lg btn">Reset</button>
+                <button id="settings-btn" class="bg-blue-500 hover:bg-blue-600 text-white font-bold py-3 px-4 rounded-lg text-lg btn">Settings</button>
+            </div>
+        </div>
+
+        <!-- Settings Panel (Initially Hidden) -->
+        <div id="settings-panel" class="bg-gray-800 rounded-2xl shadow-2xl p-6 hidden">
+            <h3 class="text-2xl font-bold mb-6 text-center">Settings</h3>
+            
+            <!-- Timer Settings -->
+            <div class="grid grid-cols-2 gap-x-6 gap-y-4 mb-6">
+                <div class="form-group">
+                    <label for="work-time" class="block text-sm font-medium text-gray-300">Work (sec)</label>
+                    <div class="flex items-center gap-2 mt-1">
+                        <button data-action="decrement" data-target="work-time" class="stepper-btn w-10 h-10 text-xl font-bold bg-gray-700 hover:bg-gray-600 rounded-md btn">-</button>
+                        <input type="number" id="work-time" value="20" class="text-center block w-full bg-gray-900 border border-gray-600 rounded-md shadow-sm py-2 px-3 text-white focus:outline-none focus:ring-blue-500 focus:border-blue-500">
+                        <button data-action="increment" data-target="work-time" class="stepper-btn w-10 h-10 text-xl font-bold bg-gray-700 hover:bg-gray-600 rounded-md btn">+</button>
+                    </div>
+                </div>
+                 <div class="form-group">
+                    <label for="rest-time" class="block text-sm font-medium text-gray-300">Rest (sec)</label>
+                    <div class="flex items-center gap-2 mt-1">
+                        <button data-action="decrement" data-target="rest-time" class="stepper-btn w-10 h-10 text-xl font-bold bg-gray-700 hover:bg-gray-600 rounded-md btn">-</button>
+                        <input type="number" id="rest-time" value="10" class="text-center block w-full bg-gray-900 border border-gray-600 rounded-md shadow-sm py-2 px-3 text-white focus:outline-none focus:ring-blue-500 focus:border-blue-500">
+                        <button data-action="increment" data-target="rest-time" class="stepper-btn w-10 h-10 text-xl font-bold bg-gray-700 hover:bg-gray-600 rounded-md btn">+</button>
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label for="rounds-per-set" class="block text-sm font-medium text-gray-300">Rounds/Set</label>
+                    <div class="flex items-center gap-2 mt-1">
+                        <button data-action="decrement" data-target="rounds-per-set" class="stepper-btn w-10 h-10 text-xl font-bold bg-gray-700 hover:bg-gray-600 rounded-md btn">-</button>
+                        <input type="number" id="rounds-per-set" value="8" class="text-center block w-full bg-gray-900 border border-gray-600 rounded-md shadow-sm py-2 px-3 text-white focus:outline-none focus:ring-blue-500 focus:border-blue-500">
+                        <button data-action="increment" data-target="rounds-per-set" class="stepper-btn w-10 h-10 text-xl font-bold bg-gray-700 hover:bg-gray-600 rounded-md btn">+</button>
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label for="num-sets" class="block text-sm font-medium text-gray-300">Sets</label>
+                    <div class="flex items-center gap-2 mt-1">
+                        <button data-action="decrement" data-target="num-sets" class="stepper-btn w-10 h-10 text-xl font-bold bg-gray-700 hover:bg-gray-600 rounded-md btn">-</button>
+                        <input type="number" id="num-sets" value="4" class="text-center block w-full bg-gray-900 border border-gray-600 rounded-md shadow-sm py-2 px-3 text-white focus:outline-none focus:ring-blue-500 focus:border-blue-500">
+                        <button data-action="increment" data-target="num-sets" class="stepper-btn w-10 h-10 text-xl font-bold bg-gray-700 hover:bg-gray-600 rounded-md btn">+</button>
+                    </div>
+                </div>
+                <div class="form-group col-span-2">
+                    <label for="rest-between-sets" class="block text-sm font-medium text-gray-300">Rest Between Sets (sec)</label>
+                     <div class="flex items-center gap-2 mt-1">
+                        <button data-action="decrement" data-target="rest-between-sets" class="stepper-btn w-10 h-10 text-xl font-bold bg-gray-700 hover:bg-gray-600 rounded-md btn">-</button>
+                        <input type="number" id="rest-between-sets" value="60" class="text-center block w-full bg-gray-900 border border-gray-600 rounded-md shadow-sm py-2 px-3 text-white focus:outline-none focus:ring-blue-500 focus:border-blue-500">
+                        <button data-action="increment" data-target="rest-between-sets" class="stepper-btn w-10 h-10 text-xl font-bold bg-gray-700 hover:bg-gray-600 rounded-md btn">+</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Calculated Durations -->
+            <div class="bg-gray-700 p-4 rounded-lg text-center grid grid-cols-2 gap-4 mb-6">
+                <div>
+                    <h4 class="text-sm font-semibold text-gray-400 uppercase">Set Duration</h4>
+                    <p id="set-duration-display" class="text-2xl font-bold">00:00</p>
+                </div>
+                <div>
+                    <h4 class="text-sm font-semibold text-gray-400 uppercase">Total Workout</h4>
+                    <p id="total-duration-display" class="text-2xl font-bold">00:00</p>
+                </div>
+            </div>
+
+            <!-- Presets -->
+            <div class="mb-4">
+                <h4 id="preset-heading" class="text-center text-gray-400 font-semibold uppercase text-sm mb-2">Presets</h4>
+                <div class="grid grid-cols-3 gap-2">
+                    <button data-preset-name="main" class="preset-btn bg-teal-600 hover:bg-teal-700 text-white font-bold py-2 px-3 rounded-lg text-base btn">Main</button>
+                    <button data-preset-name="extra" class="preset-btn bg-teal-600 hover:bg-teal-700 text-white font-bold py-2 px-3 rounded-lg text-base btn">Extra</button>
+                    <button data-preset-name="thasmin" class="preset-btn bg-teal-600 hover:bg-teal-700 text-white font-bold py-2 px-3 rounded-lg text-base btn">Thasmin</button>
+                </div>
+            </div>
+            
+            <button id="save-preset-mode-btn" class="w-full bg-yellow-600 hover:bg-yellow-700 text-white font-bold py-2 px-3 rounded-lg text-base btn mb-4">Save as Preset</button>
+            
+            <div class="grid grid-cols-2 gap-2 mb-4">
+                <button id="exercise-settings-btn" class="w-full bg-gray-600 hover:bg-gray-500 text-white font-bold py-3 px-4 rounded-lg text-lg btn">Exercises</button>
+                <button id="sounds-settings-btn" class="w-full bg-gray-600 hover:bg-gray-500 text-white font-bold py-3 px-4 rounded-lg text-lg btn">Sounds</button>
+            </div>
+             <button id="close-settings-btn" class="w-full bg-blue-500 hover:bg-blue-600 text-white font-bold py-3 px-4 rounded-lg text-lg btn">Done</button>
+        </div>
+
+        <!-- Sounds Panel (Initially Hidden) -->
+        <div id="sounds-panel" class="bg-gray-800 rounded-2xl shadow-2xl p-6 hidden">
+            <h3 class="text-2xl font-bold mb-6 text-center">Sound Settings</h3>
+            <div class="space-y-4">
+                <!-- Sound options will be here -->
+            </div>
+            <button id="back-to-settings-btn-from-sounds" class="mt-6 w-full bg-blue-500 hover:bg-blue-600 text-white font-bold py-3 px-4 rounded-lg text-lg btn">Back</button>
+        </div>
+        
+        <!-- Exercise Settings Panel (Initially Hidden) -->
+        <div id="exercise-settings-panel" class="bg-gray-800 rounded-2xl shadow-2xl p-6 hidden">
+            <h3 class="text-2xl font-bold mb-6 text-center">Exercise Settings</h3>
+            <div id="exercise-inputs-container" class="space-y-4 max-h-96 overflow-y-auto pr-2">
+                <!-- Exercise inputs will be dynamically generated here -->
+            </div>
+            <button id="back-to-settings-btn-from-exercises" class="mt-6 w-full bg-blue-500 hover:bg-blue-600 text-white font-bold py-3 px-4 rounded-lg text-lg btn">Back</button>
+        </div>
+    </div>
+
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+    // --- DOM ELEMENTS ---
+    const timerContainer = document.getElementById('timer-container');
+    const settingsPanel = document.getElementById('settings-panel');
+    const soundsPanel = document.getElementById('sounds-panel');
+    const exerciseSettingsPanel = document.getElementById('exercise-settings-panel');
+    
+    const timerDisplayContent = document.getElementById('timer-display-content');
+    const completionMessage = document.getElementById('completion-message');
+    const currentRoundDisplay = document.getElementById('current-round');
+    const totalRoundsDisplay = document.getElementById('total-rounds');
+    const currentSetDisplay = document.getElementById('current-set');
+    const totalSetsDisplay = document.getElementById('total-sets');
+    const exerciseDisplay = document.getElementById('exercise-display');
+
+    const controlsContainer = document.getElementById('controls-container');
+    const startPauseBtn = document.getElementById('start-pause-btn');
+    const resetBtn = document.getElementById('reset-btn');
+    const settingsBtn = document.getElementById('settings-btn');
+    const closeSettingsBtn = document.getElementById('close-settings-btn');
+    const soundsSettingsBtn = document.getElementById('sounds-settings-btn');
+    const exerciseSettingsBtn = document.getElementById('exercise-settings-btn');
+    const backToSettingsBtnFromSounds = document.getElementById('back-to-settings-btn-from-sounds');
+    const backToSettingsBtnFromExercises = document.getElementById('back-to-settings-btn-from-exercises');
+
+    const setDurationDisplay = document.getElementById('set-duration-display');
+    const totalDurationDisplay = document.getElementById('total-duration-display');
+
+    // --- SETTINGS INPUTS ---
+    const workTimeInput = document.getElementById('work-time');
+    const restTimeInput = document.getElementById('rest-time');
+    const roundsPerSetInput = document.getElementById('rounds-per-set');
+    const numSetsInput = document.getElementById('num-sets');
+    const restBetweenSetsInput = document.getElementById('rest-between-sets');
+    
+    // --- PRESET ELEMENTS ---
+    const presetHeading = document.getElementById('preset-heading');
+    const savePresetModeBtn = document.getElementById('save-preset-mode-btn');
+    const presetButtons = document.querySelectorAll('.preset-btn');
+
+    // --- STATE MANAGEMENT ---
+    let state = {}; // Will be populated by loadState
+    let isSavingPreset = false;
+
+    const defaultState = {
+        timer: null,
+        status: 'idle',
+        phase: 'prepare',
+        currentTime: 0,
+        currentRound: 0,
+        currentSet: 0,
+        settings: {
+            workTime: 20,
+            restTime: 10,
+            roundsPerSet: 8,
+            numSets: 4,
+            restBetweenSets: 60,
+            preStartDelay: 3,
+            exercises: ["Pushups", "Squats", "Plank", "Jumping Jacks"]
+        },
+        sounds: {
+            preStart: 'beep',
+            workStart: 'mellow-marimba',
+            workEnd: 'chime',
+            setEnd: 'complete',
+            workoutComplete: 'triumph'
+        },
+        presets: {
+            main: { workTime: 35, restTime: 35, roundsPerSet: 8, numSets: 4, restBetweenSets: 70, exercises: ["Burpees", "High Knees", "Lunges", "Crunches"] },
+            extra: { workTime: 32, restTime: 32, roundsPerSet: 2, numSets: 12, restBetweenSets: 15, exercises: new Array(12).fill('') },
+            thasmin: { workTime: 35, restTime: 35, roundsPerSet: 4, numSets: 7, restBetweenSets: 60, exercises: new Array(7).fill('') }
+        }
+    };
+
+    // --- AUDIO SYNTHESIS (Tone.js) ---
+    const synths = {
+        beep: new Tone.Synth({ oscillator: { type: 'sine' }, envelope: { attack: 0.01, decay: 0.1, sustain: 0.1, release: 0.1 } }).toDestination(),
+        click: new Tone.MembraneSynth({ octaves: 4 }).toDestination(),
+        whistle: new Tone.Synth({ oscillator: { type: 'triangle' }, envelope: { attack: 0.01, decay: 0.2, sustain: 0, release: 0.1 } }).toDestination(),
+        chime: new Tone.Synth({ oscillator: { type: 'sine' }, envelope: { attack: 0.01, decay: 0.5, sustain: 0, release: 0.1 } }).toDestination(),
+        complete: new Tone.PolySynth(Tone.Synth, { oscillator: { type: 'triangle' }, envelope: { attack: 0.01, decay: 0.5, sustain: 0.2, release: 0.5 } }).toDestination(),
+        harp: new Tone.PolySynth(Tone.Synth, { oscillator: { type: 'sine' }, envelope: { attack: 0.01, decay: 0.8, sustain: 0.2, release: 0.5 } }).toDestination(),
+        fanfare: new Tone.PolySynth(Tone.Synth, { oscillator: { type: 'fatsine' }, envelope: { attack: 0.01, decay: 0.4, sustain: 0, release: 0.4 } }).toDestination(),
+        woodBlock: new Tone.MembraneSynth({ pitchDecay: 0.01, octaves: 2, oscillator: { type: 'square' }, envelope: { attack: 0.001, decay: 0.2, sustain: 0 } }).toDestination(),
+        warmPadStart: new Tone.PolySynth(Tone.Synth, { oscillator: { type: 'sine' }, envelope: { attack: 0.2, decay: 0.3, sustain: 0.5, release: 0.8 } }).toDestination(),
+        warmPadEnd: new Tone.PolySynth(Tone.Synth, { oscillator: { type: 'sine' }, envelope: { attack: 0.2, decay: 0.3, sustain: 0.5, release: 0.8 } }).toDestination(),
+        mellowMarimba: new Tone.Synth({ oscillator: { type: 'sine' }, envelope: { attack: 0.01, decay: 0.4, sustain: 0, release: 0.1 } }).toDestination(),
+        gentleKalimba: new Tone.PluckSynth({ attackNoise: 0.2, dampening: 6000, resonance: 0.85 }).toDestination(),
+        triumph: new Tone.PolySynth(Tone.Synth, { oscillator: { type: 'triangle' } }).toDestination(),
+        successChime: new Tone.PolySynth(Tone.Synth, { oscillator: { type: 'sine' } }).toDestination()
+    };
+
+    const playSound = (type) => {
+        if (Tone.context.state !== 'running') {
+            Tone.start();
+        }
+        const now = Tone.now();
+        switch (type) {
+            case 'beep': synths.beep.triggerAttackRelease('C5', '8n', now); break;
+            case 'click': synths.click.triggerAttackRelease('C2', '8n', now); break;
+            case 'whistle': synths.whistle.triggerAttackRelease('G5', '8n', now); break;
+            case 'chime': synths.chime.triggerAttackRelease('C6', '4n', now); break;
+            case 'complete': synths.complete.triggerAttackRelease(['C4', 'E4', 'G4'], '2n', now); break;
+            case 'harp': synths.harp.triggerAttackRelease(['G4', 'B4', 'D5', 'G5'], '1n', now); break;
+            case 'fanfare': synths.fanfare.triggerAttackRelease(['C5', 'G5', 'C6'], '4n', now); break;
+            case 'wood-block': synths.woodBlock.triggerAttackRelease('C5', '8n', now); break;
+            case 'warm-pad-start': synths.warmPadStart.triggerAttackRelease(['C4', 'G4', 'C5'], '2n', now, 0.6); break;
+            case 'warm-pad-end': synths.warmPadEnd.triggerAttackRelease(['C4', 'F4', 'A4'], '2n', now, 0.6); break;
+            case 'mellow-marimba': synths.mellowMarimba.triggerAttackRelease('D5', '8n', now, 0.9); break;
+            case 'gentle-kalimba': synths.gentleKalimba.triggerAttackRelease('A4', '8n', now, 0.8); break;
+            case 'triumph': synths.triumph.triggerAttackRelease(['C5', 'E5', 'G5', 'C6'], '2n', now); break;
+            case 'success-chime': synths.successChime.triggerAttackRelease(['G5', 'B5', 'D6'], '2n', now); break;
+        }
+    };
+
+    // --- DATA PERSISTENCE ---
+    const saveState = () => {
+        try {
+            const stateToSave = {
+                settings: state.settings,
+                sounds: state.sounds,
+                presets: state.presets
+            };
+            localStorage.setItem('tabataTimerState', JSON.stringify(stateToSave));
+        } catch (e) {
+            console.error("Could not save state to localStorage", e);
+        }
+    };
+
+    const loadState = () => {
+        try {
+            const savedStateJSON = localStorage.getItem('tabataTimerState');
+            if (savedStateJSON) {
+                const savedState = JSON.parse(savedStateJSON);
+                // Deep merge to handle nested objects
+                state = {
+                    ...defaultState,
+                    settings: { ...defaultState.settings, ...savedState.settings },
+                    sounds: { ...defaultState.sounds, ...savedState.sounds },
+                    presets: { ...defaultState.presets, ...savedState.presets }
+                };
+            } else {
+                state = JSON.parse(JSON.stringify(defaultState)); // Deep copy
+            }
+        } catch (e) {
+            console.error("Could not load state from localStorage", e);
+            state = JSON.parse(JSON.stringify(defaultState)); // Deep copy
+        }
+    };
+    
+    // --- DYNAMIC UI GENERATION ---
+    const generateSoundInputs = () => {
+        soundsPanel.querySelector('.space-y-4').innerHTML = `
+            <div>
+                <label for="pre-start-sound" class="block text-sm font-medium text-gray-300">Pre-Start Beep</label>
+                <div class="flex items-center gap-2 mt-1">
+                    <select id="pre-start-sound" class="sound-select block w-full bg-gray-700 border border-gray-600 rounded-md shadow-sm py-2 px-3 text-white focus:outline-none focus:ring-blue-500 focus:border-blue-500">
+                        <option value="beep">Beep</option>
+                        <option value="click">Click</option>
+                        <option value="wood-block">Wood Block</option>
+                    </select>
+                    <button data-sound-for="pre-start-sound" class="test-sound-btn p-2 bg-gray-600 hover:bg-gray-500 rounded-md btn flex-shrink-0"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="w-5 h-5 text-white"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg></button>
+                </div>
+            </div>
+            <div>
+                <label for="work-start-sound" class="block text-sm font-medium text-gray-300">Work Start</label>
+                <div class="flex items-center gap-2 mt-1">
+                    <select id="work-start-sound" class="sound-select block w-full bg-gray-700 border border-gray-600 rounded-md shadow-sm py-2 px-3 text-white focus:outline-none focus:ring-blue-500 focus:border-blue-500">
+                        <option value="mellow-marimba">Mellow Marimba</option>
+                        <option value="whistle">Whistle</option>
+                        <option value="chime">Chime</option>
+                        <option value="warm-pad-start">Warm Pad (Start)</option>
+                        <option value="gentle-kalimba">Gentle Kalimba</option>
+                    </select>
+                    <button data-sound-for="work-start-sound" class="test-sound-btn p-2 bg-gray-600 hover:bg-gray-500 rounded-md btn flex-shrink-0"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="w-5 h-5 text-white"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg></button>
+                </div>
+            </div>
+            <div>
+                <label for="work-end-sound" class="block text-sm font-medium text-gray-300">Work End / Rest Start</label>
+                <div class="flex items-center gap-2 mt-1">
+                    <select id="work-end-sound" class="sound-select block w-full bg-gray-700 border border-gray-600 rounded-md shadow-sm py-2 px-3 text-white focus:outline-none focus:ring-blue-500 focus:border-blue-500">
+                        <option value="chime">Chime</option>
+                        <option value="whistle">Whistle</option>
+                        <option value="warm-pad-end">Warm Pad (End)</option>
+                        <option value="mellow-marimba">Mellow Marimba</option>
+                        <option value="gentle-kalimba">Gentle Kalimba</option>
+                    </select>
+                    <button data-sound-for="work-end-sound" class="test-sound-btn p-2 bg-gray-600 hover:bg-gray-500 rounded-md btn flex-shrink-0"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="w-5 h-5 text-white"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg></button>
+                </div>
+            </div>
+            <div>
+                <label for="set-end-sound" class="block text-sm font-medium text-gray-300">Set Transition</label>
+                <div class="flex items-center gap-2 mt-1">
+                    <select id="set-end-sound" class="sound-select block w-full bg-gray-700 border border-gray-600 rounded-md shadow-sm py-2 px-3 text-white focus:outline-none focus:ring-blue-500 focus:border-blue-500">
+                        <option value="complete">Complete</option>
+                        <option value="harp">Harp</option>
+                        <option value="fanfare">Fanfare</option>
+                    </select>
+                    <button data-sound-for="set-end-sound" class="test-sound-btn p-2 bg-gray-600 hover:bg-gray-500 rounded-md btn flex-shrink-0"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="w-5 h-5 text-white"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg></button>
+                </div>
+            </div>
+            <div>
+                <label for="workout-complete-sound" class="block text-sm font-medium text-gray-300">Workout Complete</label>
+                <div class="flex items-center gap-2 mt-1">
+                    <select id="workout-complete-sound" class="sound-select block w-full bg-gray-700 border border-gray-600 rounded-md shadow-sm py-2 px-3 text-white focus:outline-none focus:ring-blue-500 focus:border-blue-500">
+                        <option value="triumph">Triumph</option>
+                        <option value="success-chime">Success Chime</option>
+                        <option value="fanfare">Fanfare</option>
+                    </select>
+                    <button data-sound-for="workout-complete-sound" class="test-sound-btn p-2 bg-gray-600 hover:bg-gray-500 rounded-md btn flex-shrink-0"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="w-5 h-5 text-white"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg></button>
+                </div>
+            </div>
+        `;
+        soundsPanel.querySelectorAll('.sound-select').forEach(sel => sel.addEventListener('change', handleSoundChange));
+        soundsPanel.querySelectorAll('.test-sound-btn').forEach(btn => btn.addEventListener('click', handleTestSound));
+    };
+
+    const generateExerciseInputs = () => {
+        const container = document.getElementById('exercise-inputs-container');
+        container.innerHTML = ''; // Clear existing inputs
+        const numSets = state.settings.numSets;
+        for (let i = 0; i < numSets; i++) {
+            const exerciseName = state.settings.exercises[i] || '';
+            const inputGroup = document.createElement('div');
+            inputGroup.innerHTML = `
+                <label for="exercise-set-${i+1}" class="block text-sm font-medium text-gray-400">Set ${i+1}</label>
+                <input type="text" id="exercise-set-${i+1}" data-set-index="${i}" value="${exerciseName}" class="exercise-input mt-1 block w-full bg-gray-700 border border-gray-600 rounded-md shadow-sm py-2 px-3 text-white focus:outline-none focus:ring-blue-500 focus:border-blue-500">
+            `;
+            container.appendChild(inputGroup);
+        }
+        document.querySelectorAll('.exercise-input').forEach(input => {
+            input.addEventListener('input', handleExerciseInputChange);
+        });
+    };
+
+    // --- CORE FUNCTIONS ---
+    const formatTime = (seconds) => {
+        const mins = Math.floor(seconds / 60).toString().padStart(2, '0');
+        const secs = (seconds % 60).toString().padStart(2, '0');
+        return `${mins}:${secs}`;
+    };
+
+    const updateDurations = () => {
+        const s = state.settings;
+        const work = parseInt(s.workTime) || 0;
+        const rest = parseInt(s.restTime) || 0;
+        const rounds = parseInt(s.roundsPerSet) || 0;
+        const sets = parseInt(s.numSets) || 0;
+        const setRest = parseInt(s.restBetweenSets) || 0;
+
+        const setDuration = (work * rounds) + (rest * rounds);
+        const totalDuration = (setDuration * sets) + (setRest * (sets > 1 ? sets - 1 : 0));
+
+        setDurationDisplay.textContent = formatTime(setDuration);
+        totalDurationDisplay.textContent = formatTime(totalDuration);
+    };
+
+    const updateDisplay = () => {
+        document.getElementById('timer-display').textContent = formatTime(state.currentTime);
+        document.getElementById('phase-display').textContent = state.phase.replace('setRest', 'SET REST');
+        currentRoundDisplay.textContent = state.currentRound;
+        totalRoundsDisplay.textContent = state.settings.roundsPerSet;
+        currentSetDisplay.textContent = state.currentSet;
+        totalSetsDisplay.textContent = state.settings.numSets;
+
+        const exerciseText = (state.currentSet > 0 && state.settings.exercises[state.currentSet - 1]) ? state.settings.exercises[state.currentSet - 1] : '---';
+        exerciseDisplay.textContent = exerciseText;
+
+        const phaseColors = {
+            prepare: 'text-yellow-400',
+            work: 'text-green-400',
+            rest: 'text-purple-400',
+            setRest: 'text-purple-400',
+            complete: 'text-white'
+        };
+        document.getElementById('timer-display').className = `text-8xl md:text-9xl timer-display ${phaseColors[state.phase] || 'text-white'}`;
+        document.getElementById('phase-display').className = `text-2xl font-bold uppercase mb-2 ${phaseColors[state.phase] || 'text-white'}`;
+    };
+    
+    const updateButtonState = () => {
+        if (state.status === 'running') {
+            controlsContainer.className = 'flex justify-center';
+            resetBtn.classList.add('hidden');
+            settingsBtn.classList.add('hidden');
+            startPauseBtn.textContent = 'Pause';
+            startPauseBtn.classList.remove('bg-green-500', 'hover:bg-green-600', 'text-white');
+            startPauseBtn.classList.add('bg-gray-600', 'hover:bg-gray-700', 'text-gray-300');
+        } else if (state.status === 'paused') {
+            controlsContainer.className = 'grid grid-cols-3 gap-4';
+            resetBtn.classList.remove('hidden');
+            settingsBtn.classList.remove('hidden');
+            startPauseBtn.textContent = 'Resume';
+            startPauseBtn.classList.remove('bg-gray-600', 'hover:bg-gray-700', 'text-gray-300');
+            startPauseBtn.classList.add('bg-green-500', 'hover:bg-green-600', 'text-white');
+        } else { // idle
+            controlsContainer.className = 'grid grid-cols-3 gap-4';
+            resetBtn.classList.remove('hidden');
+            settingsBtn.classList.remove('hidden');
+            startPauseBtn.textContent = 'Start';
+            startPauseBtn.classList.remove('bg-gray-600', 'hover:bg-gray-700', 'text-gray-300');
+            startPauseBtn.classList.add('bg-green-500', 'hover:bg-green-600', 'text-white');
+        }
+    };
+
+    const reset = () => {
+        clearInterval(state.timer);
+        state.status = 'idle';
+        state.phase = 'prepare';
+        state.currentRound = 0;
+        state.currentSet = 0;
+        state.currentTime = state.settings.preStartDelay;
+        timerDisplayContent.classList.remove('hidden');
+        completionMessage.classList.add('hidden');
+        updateButtonState();
+        updateDisplay();
+    };
+
+    const tick = () => {
+        state.currentTime--;
+        updateDisplay();
+
+        if (state.currentTime > 0) {
+            if (state.phase === 'prepare') {
+                playSound(state.sounds.preStart);
+            }
+            return;
+        }
+
+        if (state.phase === 'prepare') {
+            state.phase = 'work';
+            state.currentRound = 1;
+            state.currentSet = 1;
+            state.currentTime = state.settings.workTime;
+            playSound(state.sounds.workStart);
+        } else if (state.phase === 'work') {
+            state.phase = 'rest';
+            state.currentTime = state.settings.restTime;
+            playSound(state.sounds.workEnd);
+        } else if (state.phase === 'rest') {
+            if (state.currentRound >= state.settings.roundsPerSet) {
+                if (state.currentSet >= state.settings.numSets) {
+                    workoutComplete();
+                    return;
+                } else {
+                    state.phase = 'setRest';
+                    state.currentTime = state.settings.restBetweenSets;
+                    playSound(state.sounds.setEnd);
+                }
+            } else {
+                state.currentRound++;
+                state.phase = 'work';
+                state.currentTime = state.settings.workTime;
+                playSound(state.sounds.workStart);
+            }
+        } else if (state.phase === 'setRest') {
+            state.currentSet++;
+            state.currentRound = 1;
+            state.phase = 'work';
+            state.currentTime = state.settings.workTime;
+            playSound(state.sounds.workStart);
+        }
+        updateDisplay();
+    };
+    
+    const workoutComplete = () => {
+        clearInterval(state.timer);
+        state.status = 'idle';
+        state.phase = 'complete';
+        playSound(state.sounds.workoutComplete);
+        timerDisplayContent.classList.add('hidden');
+        completionMessage.classList.remove('hidden');
+        updateButtonState();
+        setTimeout(reset, 3000);
+    };
+
+    const start = () => {
+        if (state.status === 'running') return;
+        
+        if (Tone.context.state !== 'running') {
+            Tone.start();
+        }
+
+        if (state.status === 'idle') {
+            clearInterval(state.timer);
+            state.phase = 'prepare';
+            state.currentRound = 0;
+            state.currentSet = 0;
+            state.currentTime = state.settings.preStartDelay;
+            timerDisplayContent.classList.remove('hidden');
+            completionMessage.classList.add('hidden');
+            updateDisplay();
+            playSound(state.sounds.preStart);
+        }
+
+        state.status = 'running';
+        state.timer = setInterval(tick, 1000);
+        updateButtonState();
+    };
+
+    const pause = () => {
+        if (state.status !== 'running') return;
+        clearInterval(state.timer);
+        state.status = 'paused';
+        updateButtonState();
+    };
+
+    // --- EVENT HANDLERS ---
+    const handleStartPause = () => {
+        if (state.status === 'running') {
+            pause();
+        } else {
+            start();
+        }
+    };
+    
+    const adjustExerciseArray = (newSize) => {
+        const currentSize = state.settings.exercises.length;
+        if (newSize > currentSize) {
+            for (let i = currentSize; i < newSize; i++) {
+                state.settings.exercises.push('');
+            }
+        } else if (newSize < currentSize) {
+            state.settings.exercises.length = newSize;
+        }
+    };
+
+    const handleSettingsChange = (e) => {
+        const oldNumSets = state.settings.numSets;
+        state.settings.workTime = parseInt(workTimeInput.value) || 0;
+        state.settings.restTime = parseInt(restTimeInput.value) || 0;
+        state.settings.roundsPerSet = parseInt(roundsPerSetInput.value) || 0;
+        state.settings.numSets = parseInt(numSetsInput.value) || 0;
+        state.settings.restBetweenSets = parseInt(restBetweenSetsInput.value) || 0;
+        
+        if (state.settings.numSets !== oldNumSets) {
+            adjustExerciseArray(state.settings.numSets);
+            generateExerciseInputs();
+        }
+
+        updateDurations();
+        if (state.status === 'idle') {
+            reset();
+        }
+        saveState();
+    };
+    
+    const handleExerciseInputChange = (e) => {
+        const index = parseInt(e.target.dataset.setIndex);
+        state.settings.exercises[index] = e.target.value;
+        saveState();
+    };
+
+    const handleSoundChange = () => {
+        state.sounds.preStart = document.getElementById('pre-start-sound').value;
+        state.sounds.workStart = document.getElementById('work-start-sound').value;
+        state.sounds.workEnd = document.getElementById('work-end-sound').value;
+        state.sounds.setEnd = document.getElementById('set-end-sound').value;
+        state.sounds.workoutComplete = document.getElementById('workout-complete-sound').value;
+        saveState();
+    };
+
+    const applyPreset = (presetName) => {
+        const presetSettings = state.presets[presetName];
+        if (!presetSettings) return;
+
+        // Corrected: Merge preset settings with existing settings to preserve keys like preStartDelay
+        state.settings = { 
+            ...state.settings, 
+            ...JSON.parse(JSON.stringify(presetSettings)) 
+        };
+        
+        updateUIFromState(); // Updates all inputs and generates new exercise fields
+        handleSettingsChange(); // Recalculates durations and saves
+    };
+
+    const savePreset = (presetName) => {
+        state.presets[presetName] = JSON.parse(JSON.stringify(state.settings)); // Deep copy
+        saveState();
+        togglePresetSaveMode(false);
+    };
+
+    const togglePresetSaveMode = (isSaving) => {
+        isSavingPreset = isSaving;
+        presetButtons.forEach(btn => {
+            if (isSaving) {
+                btn.classList.add('saving');
+            } else {
+                btn.classList.remove('saving');
+            }
+        });
+        presetHeading.textContent = isSaving ? "Select Slot to Overwrite" : "Presets";
+        savePresetModeBtn.textContent = isSaving ? "Cancel" : "Save as Preset";
+    };
+
+    const showMainSettings = () => {
+        soundsPanel.classList.add('hidden');
+        exerciseSettingsPanel.classList.add('hidden');
+        settingsPanel.classList.remove('hidden');
+    };
+    
+    const showSoundSettings = () => {
+        settingsPanel.classList.add('hidden');
+        soundsPanel.classList.remove('hidden');
+    };
+
+    const showExerciseSettings = () => {
+        settingsPanel.classList.add('hidden');
+        exerciseSettingsPanel.classList.remove('hidden');
+    };
+
+    const showTimer = () => {
+        settingsPanel.classList.add('hidden');
+        soundsPanel.classList.add('hidden');
+        exerciseSettingsPanel.classList.add('hidden');
+        timerContainer.classList.remove('hidden');
+    };
+
+    const showSettings = () => {
+        timerContainer.classList.add('hidden');
+        settingsPanel.classList.remove('hidden');
+    };
+
+    const handleTestSound = (event) => {
+        const btn = event.currentTarget;
+        const selectId = btn.dataset.soundFor;
+        const selectEl = document.getElementById(selectId);
+        if (selectEl) {
+            playSound(selectEl.value);
+        }
+    };
+
+    const handleStepper = (event) => {
+        const button = event.currentTarget;
+        const action = button.dataset.action;
+        const targetId = button.dataset.target;
+        const input = document.getElementById(targetId);
+
+        if (input) {
+            let value = parseInt(input.value, 10);
+            const min = (targetId === 'rest-between-sets' || targetId === 'rest-time') ? 0 : 1;
+
+            if (action === 'increment') {
+                value++;
+            } else if (action === 'decrement') {
+                value--;
+            }
+
+            if (value < min) {
+                value = min;
+            }
+
+            input.value = value;
+            input.dispatchEvent(new Event('change'));
+        }
+    };
+    
+    const updateUIFromState = () => {
+        workTimeInput.value = state.settings.workTime;
+        restTimeInput.value = state.settings.restTime;
+        roundsPerSetInput.value = state.settings.roundsPerSet;
+        numSetsInput.value = state.settings.numSets;
+        restBetweenSetsInput.value = state.settings.restBetweenSets;
+        
+        document.getElementById('pre-start-sound').value = state.sounds.preStart;
+        document.getElementById('work-start-sound').value = state.sounds.workStart;
+        document.getElementById('work-end-sound').value = state.sounds.workEnd;
+        document.getElementById('set-end-sound').value = state.sounds.setEnd;
+        document.getElementById('workout-complete-sound').value = state.sounds.workoutComplete;
+        
+        generateExerciseInputs();
+        updateDurations();
+    };
+
+    // --- EVENT LISTENERS ---
+    startPauseBtn.addEventListener('click', handleStartPause);
+    resetBtn.addEventListener('click', reset);
+    settingsBtn.addEventListener('click', showSettings);
+    closeSettingsBtn.addEventListener('click', showTimer);
+    soundsSettingsBtn.addEventListener('click', showSoundSettings);
+    exerciseSettingsBtn.addEventListener('click', showExerciseSettings);
+    backToSettingsBtnFromSounds.addEventListener('click', showMainSettings);
+    backToSettingsBtnFromExercises.addEventListener('click', showMainSettings);
+    
+    [workTimeInput, restTimeInput, roundsPerSetInput, numSetsInput, restBetweenSetsInput].forEach(input => {
+        input.addEventListener('change', handleSettingsChange);
+    });
+
+    document.querySelectorAll('.stepper-btn').forEach(btn => {
+        btn.addEventListener('click', handleStepper);
+    });
+
+    presetButtons.forEach(btn => {
+        btn.addEventListener('click', () => {
+            const presetName = btn.dataset.presetName;
+            if (isSavingPreset) {
+                savePreset(presetName);
+            } else {
+                applyPreset(presetName);
+            }
+        });
+    });
+
+    savePresetModeBtn.addEventListener('click', () => togglePresetSaveMode(!isSavingPreset));
+
+    // --- INITIALIZATION ---
+    generateSoundInputs(); // Build the sound panel first
+    loadState();
+    updateUIFromState();
+    reset();
+});
+</script>
+</body>
+</html>
