@@ -200,10 +200,10 @@ document.addEventListener('DOMContentLoaded', () => {
         },
         sounds: {
             preStart: 'retroBlip',
-            workStart: 'retroStab',
-            restStart: 'retroBeep',
-            setEnd: 'retroPowerUp',
-            workoutComplete: 'retroFanfare'
+            workStart: 'retroJump',
+            restStart: 'retroLand',
+            setEnd: 'retroFanfare',
+            workoutComplete: 'retroPowerUp'
         },
         presets: {
             "Main": { workTime: 35, restTime: 35, roundsPerSet: 8, numSets: 4, restBetweenSets: 60, exercises: ["Landmine row", "Landmine press", "Landmine squat", "Kettlebell swings"] },
@@ -234,6 +234,7 @@ document.addEventListener('DOMContentLoaded', () => {
         'retroFanfare': new Tone.PolySynth(Tone.Synth, { oscillator: { type: 'triangle' } }).toDestination(),
         'retroExplosion': new Tone.NoiseSynth({ noise: { type: "white" }, envelope: { attack: 0.005, decay: 0.2, sustain: 0 } }).toDestination(),
         'retroJump': new Tone.Synth({ oscillator: { type: 'triangle' } }).toDestination(),
+        'retroLand': new Tone.Synth({ oscillator: { type: 'triangle' } }).toDestination(),
     };
 
     const soundOptions = [
@@ -247,6 +248,7 @@ document.addEventListener('DOMContentLoaded', () => {
         { id: 'retroFanfare', name: 'Retro Fanfare', note: ['C5', 'G5', 'C6'], duration: '8n', special: 'sequence'},
         { id: 'retroExplosion', name: '8-Bit Explosion', note: 'C2', duration: '8n', special: 'noise'},
         { id: 'retroJump', name: 'Retro Jump', note: 'C5', duration: '8n', special: 'pitchBendUp'},
+        { id: 'retroLand', name: 'Retro Land', note: 'G5', duration: '8n', special: 'pitchBendDown'},
     ];
     
     // --- DATA PERSISTENCE ---
@@ -272,19 +274,10 @@ document.addEventListener('DOMContentLoaded', () => {
             if (savedStateJSON) {
                 const savedState = JSON.parse(savedStateJSON);
                 
-                // Merge settings and sounds
-                state.settings = { ...state.settings, ...savedState.settings };
-                state.sounds = { ...state.sounds, ...savedState.sounds };
-
-                // For presets, only load values for keys that exist in the default presets.
-                // This prevents old, unwanted preset keys from appearing.
-                if (savedState.presets) {
-                    for (const key in state.presets) {
-                        if (savedState.presets.hasOwnProperty(key)) {
-                            state.presets[key] = savedState.presets[key];
-                        }
-                    }
-                }
+                // Merge settings and sounds, ensuring not to overwrite with undefined
+                if(savedState.settings) state.settings = { ...state.settings, ...savedState.settings };
+                if(savedState.sounds) state.sounds = { ...state.sounds, ...savedState.sounds };
+                if (savedState.presets) state.presets = savedState.presets;
             }
         } catch (e) {
             console.error("Could not load state from localStorage", e);
@@ -374,6 +367,8 @@ document.addEventListener('DOMContentLoaded', () => {
         const container = elements.exerciseInputsContainer;
         container.innerHTML = '';
         const numSets = state.settings.numSets;
+        // Ensure exercises array is the correct length
+        adjustExerciseArray(numSets); 
         for (let i = 0; i < numSets; i++) {
             const exerciseName = state.settings.exercises[i] || '';
             const inputGroup = document.createElement('div');
@@ -400,8 +395,12 @@ document.addEventListener('DOMContentLoaded', () => {
              synth.frequency.linearRampToValueAtTime(synth.frequency.value + pitchShift, now + 0.1);
              synth.triggerAttackRelease(note, duration, now);
         } else if (special === 'pitchBendUp' && synth.frequency) {
-            synth.frequency.setValueAtTime(note, now);
+            synth.frequency.setValueAtTime(Tone.Frequency(note).toFrequency() * 0.75, now);
             synth.frequency.linearRampToValueAtTime(Tone.Frequency(note).toFrequency() * 1.5, now + 0.1);
+            synth.triggerAttackRelease(note, duration, now);
+        } else if (special === 'pitchBendDown' && synth.frequency) {
+            synth.frequency.setValueAtTime(Tone.Frequency(note).toFrequency() * 1.5, now);
+            synth.frequency.linearRampToValueAtTime(Tone.Frequency(note).toFrequency() * 0.75, now + 0.1);
             synth.triggerAttackRelease(note, duration, now);
         } else if (special === 'sequence') {
             synth.triggerAttackRelease(note, duration, now);
@@ -424,7 +423,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         if (state.currentTime > 0) {
             if (state.phase === 'prepare' || (state.currentTime <= 3 && state.currentTime > 0)) {
-                playSound(state.sounds.preStart);
+                if(state.phase !== 'work' && state.phase !== 'rest') playSound(state.sounds.preStart);
             }
             return;
         }
@@ -446,9 +445,17 @@ document.addEventListener('DOMContentLoaded', () => {
             playSound(state.sounds.restStart);
         } else if (state.phase === 'rest') {
             if (state.currentRound >= state.settings.roundsPerSet) { // End of a set
-                 state.phase = 'setRest';
-                 state.currentTime = state.settings.restBetweenSets;
-                 playSound(state.sounds.setEnd);
+                 if (state.currentSet < state.settings.numSets && state.settings.restBetweenSets > 0) {
+                    state.phase = 'setRest';
+                    state.currentTime = state.settings.restBetweenSets;
+                    playSound(state.sounds.setEnd);
+                 } else { // No rest between sets, or last set, go to next set work
+                    state.currentSet++;
+                    state.currentRound = 1;
+                    state.phase = 'work';
+                    state.currentTime = state.settings.workTime;
+                    playSound(state.sounds.workStart);
+                 }
             } else { // Next round in the same set
                 state.currentRound++;
                 state.phase = 'work';
@@ -473,22 +480,27 @@ document.addEventListener('DOMContentLoaded', () => {
         elements.timerDisplayContent.classList.add('hidden');
         elements.completionMessage.classList.remove('hidden');
         updateButtonState();
-        setTimeout(reset, 5000);
+        setTimeout(() => reset(true), 5000);
     };
 
     const start = () => {
         if (state.status === 'running') return;
         if (Tone.context.state !== 'running') { Tone.start(); }
 
-        if (state.status === 'idle') {
+        if (state.status === 'idle' || state.phase === 'complete') {
             reset(false); // Soft reset without full UI update
             state.phase = 'prepare';
             state.currentTime = state.settings.preStartDelay;
-            playSound(state.sounds.preStart);
+            if(state.settings.preStartDelay > 0) playSound(state.sounds.preStart);
         }
 
         state.status = 'running';
-        state.timer = setInterval(tick, 1000);
+        if (state.currentTime > 0) {
+            state.timer = setInterval(tick, 1000);
+        } else {
+            tick(); // Immediately advance to the next state if current time is 0
+            state.timer = setInterval(tick, 1000);
+        }
         updateButtonState();
         updateDisplay();
     };
@@ -563,7 +575,7 @@ document.addEventListener('DOMContentLoaded', () => {
             elements.settingsBtn.classList.remove('hidden');
             elements.startPauseBtn.textContent = 'Resume';
             elements.startPauseBtn.className = 'bg-green-500 hover:bg-green-600 text-white font-bold py-3 px-4 rounded-lg text-lg btn';
-        } else { // idle
+        } else { // idle or complete
             elements.controlsContainer.className = 'grid grid-cols-3 gap-4';
             elements.resetBtn.classList.remove('hidden');
             elements.settingsBtn.classList.remove('hidden');
@@ -586,14 +598,20 @@ document.addEventListener('DOMContentLoaded', () => {
     
     const adjustExerciseArray = (newSize) => {
         const currentExercises = state.settings.exercises;
-        while (newSize > currentExercises.length) {
-            currentExercises.push('');
+        if (!Array.isArray(currentExercises)) {
+            state.settings.exercises = [];
         }
-        currentExercises.length = newSize;
+        while (newSize > state.settings.exercises.length) {
+            state.settings.exercises.push('');
+        }
+        state.settings.exercises.length = newSize;
     };
 
     const handleSettingsChange = (e) => {
         const oldNumSets = state.settings.numSets;
+        // Create a copy of the current exercises before updating settings
+        const currentExercises = [...state.settings.exercises];
+        
         state.settings = {
             workTime: parseInt(getElem('work-time').value, 10) || 0,
             restTime: parseInt(getElem('rest-time').value, 10) || 0,
@@ -601,12 +619,12 @@ document.addEventListener('DOMContentLoaded', () => {
             numSets: parseInt(getElem('num-sets').value, 10) || 0,
             restBetweenSets: parseInt(getElem('rest-between-sets').value, 10) || 0,
             preStartDelay: state.settings.preStartDelay, // Keep existing
-            exercises: state.settings.exercises // Keep existing
+            exercises: currentExercises // Start with the old list
         };
         
         if (state.settings.numSets !== oldNumSets) {
             adjustExerciseArray(state.settings.numSets);
-            generateExerciseInputs();
+            generateExerciseInputs(); // Regenerate inputs based on new size
         }
 
         updateDurations();
@@ -636,12 +654,35 @@ document.addEventListener('DOMContentLoaded', () => {
     const applyPreset = (presetName) => {
         const presetSettings = state.presets[presetName];
         if (!presetSettings) return;
-        state.settings = { ...state.settings, ...JSON.parse(JSON.stringify(presetSettings)) };
+
+        // Create a clean settings object from the preset, taking only what we need.
+        // This prevents any old/stray data in the preset from corrupting the main settings.
+        const cleanPresetSettings = {
+            workTime: presetSettings.workTime,
+            restTime: presetSettings.restTime,
+            roundsPerSet: presetSettings.roundsPerSet,
+            numSets: presetSettings.numSets,
+            restBetweenSets: presetSettings.restBetweenSets,
+            exercises: presetSettings.exercises || [] // Handle old presets without exercises
+        };
+
+        // Now merge the clean preset into the current settings.
+        // This preserves things like preStartDelay from the current state.
+        state.settings = { ...state.settings, ...cleanPresetSettings };
+
         updateUIFromState();
+        saveState();
     };
 
     const savePreset = (presetName) => {
-        state.presets[presetName] = JSON.parse(JSON.stringify(state.settings));
+        // Create a clean object with only the properties that belong in a preset.
+        // This prevents accidentally saving other data like sound settings into a preset.
+        const { workTime, restTime, roundsPerSet, numSets, restBetweenSets, exercises } = state.settings;
+        const presetToSave = { workTime, restTime, roundsPerSet, numSets, restBetweenSets, exercises };
+
+        // Save the clean object.
+        state.presets[presetName] = JSON.parse(JSON.stringify(presetToSave));
+        
         saveState();
         togglePresetSaveMode(false);
         generatePresetButtons(); // Regenerate to remove saving class
@@ -663,12 +704,14 @@ document.addEventListener('DOMContentLoaded', () => {
     };
     
     const handleStepper = (event) => {
-        const button = event.target; // Use event.target for delegation
+        const button = event.target.closest('[data-action]');
+        if (!button) return;
         const input = getElem(button.dataset.target);
         if (!input) return;
 
         let value = parseInt(input.value, 10);
-        const min = (input.id.includes('rest')) ? 0 : 1;
+        // Set a universal minimum of 0, as rest times can be 0.
+        const min = 0;
         value = button.dataset.action === 'increment' ? value + 1 : value - 1;
         input.value = Math.max(min, value);
         // Dispatch 'input' event for real-time updates
