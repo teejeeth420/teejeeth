@@ -143,7 +143,7 @@
                 <h4 id="preset-heading" class="text-center text-gray-400 font-semibold uppercase text-sm mb-2">Presets</h4>
                 <div class="grid grid-cols-3 gap-2">
                     <button data-preset-name="main" class="preset-btn bg-teal-600 hover:bg-teal-700 text-white font-bold py-2 px-3 rounded-lg text-base btn">Main</button>
-                    <button data-preset-name="extra" class="preset-btn bg-teal-600 hover:bg-teal-700 text-white font-bold py-2 px-3 rounded-lg text-base btn">Extra</button>
+                    <button data-preset-name="more" class="preset-btn bg-teal-600 hover:bg-teal-700 text-white font-bold py-2 px-3 rounded-lg text-base btn">More</button>
                     <button data-preset-name="thasmin" class="preset-btn bg-teal-600 hover:bg-teal-700 text-white font-bold py-2 px-3 rounded-lg text-base btn">Thasmin</button>
                 </div>
             </div>
@@ -245,9 +245,9 @@ document.addEventListener('DOMContentLoaded', () => {
             workoutComplete: 'triumph'
         },
         presets: {
-            main: { workTime: 35, restTime: 35, roundsPerSet: 8, numSets: 4, restBetweenSets: 70, exercises: ["Burpees", "High Knees", "Lunges", "Crunches"] },
-            extra: { workTime: 32, restTime: 32, roundsPerSet: 2, numSets: 12, restBetweenSets: 15, exercises: new Array(12).fill('') },
-            thasmin: { workTime: 35, restTime: 35, roundsPerSet: 4, numSets: 7, restBetweenSets: 60, exercises: new Array(7).fill('') }
+            main: { workTime: 35, restTime: 35, roundsPerSet: 8, numSets: 4, restBetweenSets: 60, exercises: ["Landmine row", "Landmine press", "Landmine squat", "Kettlebell swings"] },
+            more: { workTime: 32, restTime: 32, roundsPerSet: 3, numSets: 12, restBetweenSets: 0, exercises: ["Woodchoppers", "bowman", "shoulder 360's & lu raises", "face pulls", "Good mornings", "Reverse hyper", "Split squats", "3 Glutes", "Hip flexor march", "Hamstring slides", "Push ups & pull ups", "Neck & forearms"] },
+            thasmin: { workTime: 35, restTime: 35, roundsPerSet: 4, numSets: 7, restBetweenSets: 75, exercises: ["Kettlebell Power cleans", "Kettlebell swings", "Split squat", "Squat", "Hip thrust", "Monster walk", "Banded row"] }
         }
     };
 
@@ -642,7 +642,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const presetSettings = state.presets[presetName];
         if (!presetSettings) return;
 
-        // Corrected: Merge preset settings with existing settings to preserve keys like preStartDelay
+        // FIXED: Merge preset settings with existing settings to preserve keys like preStartDelay
         state.settings = { 
             ...state.settings, 
             ...JSON.parse(JSON.stringify(presetSettings)) 
