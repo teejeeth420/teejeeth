@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Tabata Timer</title>
+    <title>beep boop timer</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.7.77/Tone.js"></script>
     <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -274,13 +274,33 @@ document.addEventListener('DOMContentLoaded', () => {
             if (savedStateJSON) {
                 const savedState = JSON.parse(savedStateJSON);
                 
-                // Merge settings and sounds, ensuring not to overwrite with undefined
-                if(savedState.settings) state.settings = { ...state.settings, ...savedState.settings };
-                if(savedState.sounds) state.sounds = { ...state.sounds, ...savedState.sounds };
-                if (savedState.presets) state.presets = savedState.presets;
+                // Overwrite default settings with saved ones, if they exist
+                if (savedState.settings) {
+                    state.settings = { ...state.settings, ...savedState.settings };
+                }
+                
+                // Overwrite default presets with saved ones, if they exist
+                if (savedState.presets) {
+                    state.presets = savedState.presets;
+                }
+
+                // Carefully merge sounds to avoid corruption from old saved states
+                if (savedState.sounds) {
+                    const newSounds = { ...defaultState.sounds };
+                    // Only update a sound if it exists in the saved state and is a valid option
+                    for (const key in newSounds) {
+                        if (Object.hasOwnProperty.call(savedState.sounds, key) && savedState.sounds[key]) {
+                            // Check if the saved sound is actually in our list of available sounds
+                            if (soundOptions.some(option => option.id === savedState.sounds[key])) {
+                                newSounds[key] = savedState.sounds[key];
+                            }
+                        }
+                    }
+                    state.sounds = newSounds;
+                }
             }
         } catch (e) {
-            console.error("Could not load state from localStorage", e);
+            console.error("Could not load state from localStorage, resetting to default.", e);
             // If anything fails, reset to a clean default state.
             state = JSON.parse(JSON.stringify(defaultState));
         }
