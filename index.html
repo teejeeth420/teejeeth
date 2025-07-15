@@ -160,8 +160,8 @@
         <!-- Sounds Panel (Initially Hidden) -->
         <div id="sounds-panel" class="bg-gray-800 rounded-2xl shadow-2xl p-6 hidden">
             <h3 class="text-2xl font-bold mb-6 text-center">Sound Settings</h3>
-            <div class="space-y-4">
-                <!-- Sound options will be here -->
+            <div id="sound-inputs-container" class="space-y-4">
+                <!-- Sound options will be dynamically generated here -->
             </div>
             <button id="back-to-settings-btn-from-sounds" class="mt-6 w-full bg-blue-500 hover:bg-blue-600 text-white font-bold py-3 px-4 rounded-lg text-lg btn">Back</button>
         </div>
@@ -238,11 +238,11 @@ document.addEventListener('DOMContentLoaded', () => {
             exercises: ["Pushups", "Squats", "Plank", "Jumping Jacks"]
         },
         sounds: {
-            preStart: 'beep',
-            workStart: 'mellow-marimba',
-            workEnd: 'chime',
-            setEnd: 'complete',
-            workoutComplete: 'triumph'
+            preStart: 'retroBlip',
+            workStart: 'retroStab',
+            restStart: 'retroBeep',
+            setEnd: 'retroPowerUp',
+            workoutComplete: 'retroFanfare'
         },
         presets: {
             main: { workTime: 35, restTime: 35, roundsPerSet: 8, numSets: 4, restBetweenSets: 60, exercises: ["Landmine row", "Landmine press", "Landmine squat", "Kettlebell swings"] },
@@ -253,52 +253,38 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // --- AUDIO SYNTHESIS (Tone.js) ---
     const synths = {
-        beep: new Tone.Synth({ oscillator: { type: 'sine' }, envelope: { attack: 0.01, decay: 0.1, sustain: 0.1, release: 0.1 } }).toDestination(),
-        click: new Tone.MembraneSynth({ octaves: 4 }).toDestination(),
-        whistle: new Tone.Synth({ oscillator: { type: 'triangle' }, envelope: { attack: 0.01, decay: 0.2, sustain: 0, release: 0.1 } }).toDestination(),
-        chime: new Tone.Synth({ oscillator: { type: 'sine' }, envelope: { attack: 0.01, decay: 0.5, sustain: 0, release: 0.1 } }).toDestination(),
-        complete: new Tone.PolySynth(Tone.Synth, { oscillator: { type: 'triangle' }, envelope: { attack: 0.01, decay: 0.5, sustain: 0.2, release: 0.5 } }).toDestination(),
-        harp: new Tone.PolySynth(Tone.Synth, { oscillator: { type: 'sine' }, envelope: { attack: 0.01, decay: 0.8, sustain: 0.2, release: 0.5 } }).toDestination(),
-        fanfare: new Tone.PolySynth(Tone.Synth, { oscillator: { type: 'fatsine' }, envelope: { attack: 0.01, decay: 0.4, sustain: 0, release: 0.4 } }).toDestination(),
-        woodBlock: new Tone.MembraneSynth({ pitchDecay: 0.01, octaves: 2, oscillator: { type: 'square' }, envelope: { attack: 0.001, decay: 0.2, sustain: 0 } }).toDestination(),
-        warmPadStart: new Tone.PolySynth(Tone.Synth, { oscillator: { type: 'sine' }, envelope: { attack: 0.2, decay: 0.3, sustain: 0.5, release: 0.8 } }).toDestination(),
-        warmPadEnd: new Tone.PolySynth(Tone.Synth, { oscillator: { type: 'sine' }, envelope: { attack: 0.2, decay: 0.3, sustain: 0.5, release: 0.8 } }).toDestination(),
-        mellowMarimba: new Tone.Synth({ oscillator: { type: 'sine' }, envelope: { attack: 0.01, decay: 0.4, sustain: 0, release: 0.1 } }).toDestination(),
-        gentleKalimba: new Tone.PluckSynth({ attackNoise: 0.2, dampening: 6000, resonance: 0.85 }).toDestination(),
-        triumph: new Tone.PolySynth(Tone.Synth, { oscillator: { type: 'triangle' } }).toDestination(),
-        successChime: new Tone.PolySynth(Tone.Synth, { oscillator: { type: 'sine' } }).toDestination()
+        'retroBlip': new Tone.Synth({ oscillator: { type: 'square' }, envelope: { attack: 0.01, decay: 0.05, sustain: 0, release: 0.1 } }).toDestination(),
+        'retroBeep': new Tone.Synth({ oscillator: { type: 'triangle' }, envelope: { attack: 0.01, decay: 0.1, sustain: 0, release: 0.1 } }).toDestination(),
+        'retroStab': new Tone.Synth({ oscillator: { type: 'fatsquare', spread: 10 }, envelope: { attack: 0.01, decay: 0.2, sustain: 0.1, release: 0.2 } }).toDestination(),
+        'deepSquare': new Tone.Synth({ oscillator: { type: 'square' }, envelope: { attack: 0.01, decay: 0.3, sustain: 0.1, release: 0.2 } }).toDestination(),
+        'laser': new Tone.Synth({ oscillator: { type: 'sawtooth' }, envelope: { attack: 0.01, decay: 0.1, sustain: 0, release: 0.1 } }).toDestination(),
+        'coinGet': new Tone.Synth({ oscillator: { type: 'square' }, envelope: { attack: 0.01, decay: 0.2, sustain: 0, release: 0.1 } }).toDestination(),
+        'retroPowerUp': new Tone.PolySynth(Tone.Synth, { oscillator: { type: 'square' } }).toDestination(),
+        'retroFanfare': new Tone.PolySynth(Tone.Synth, { oscillator: { type: 'triangle' } }).toDestination(),
+        'retroExplosion': new Tone.NoiseSynth({ noise: { type: "white" }, envelope: { attack: 0.005, decay: 0.2, sustain: 0 } }).toDestination(),
+        'retroJump': new Tone.Synth({ oscillator: { type: 'triangle' } }).toDestination(),
     };
 
-    const playSound = (type) => {
-        if (Tone.context.state !== 'running') {
-            Tone.start();
-        }
-        const now = Tone.now();
-        switch (type) {
-            case 'beep': synths.beep.triggerAttackRelease('C5', '8n', now); break;
-            case 'click': synths.click.triggerAttackRelease('C2', '8n', now); break;
-            case 'whistle': synths.whistle.triggerAttackRelease('G5', '8n', now); break;
-            case 'chime': synths.chime.triggerAttackRelease('C6', '4n', now); break;
-            case 'complete': synths.complete.triggerAttackRelease(['C4', 'E4', 'G4'], '2n', now); break;
-            case 'harp': synths.harp.triggerAttackRelease(['G4', 'B4', 'D5', 'G5'], '1n', now); break;
-            case 'fanfare': synths.fanfare.triggerAttackRelease(['C5', 'G5', 'C6'], '4n', now); break;
-            case 'wood-block': synths.woodBlock.triggerAttackRelease('C5', '8n', now); break;
-            case 'warm-pad-start': synths.warmPadStart.triggerAttackRelease(['C4', 'G4', 'C5'], '2n', now, 0.6); break;
-            case 'warm-pad-end': synths.warmPadEnd.triggerAttackRelease(['C4', 'F4', 'A4'], '2n', now, 0.6); break;
-            case 'mellow-marimba': synths.mellowMarimba.triggerAttackRelease('D5', '8n', now, 0.9); break;
-            case 'gentle-kalimba': synths.gentleKalimba.triggerAttackRelease('A4', '8n', now, 0.8); break;
-            case 'triumph': synths.triumph.triggerAttackRelease(['C5', 'E5', 'G5', 'C6'], '2n', now); break;
-            case 'success-chime': synths.successChime.triggerAttackRelease(['G5', 'B5', 'D6'], '2n', now); break;
-        }
-    };
-
+    const soundOptions = [
+        { id: 'retroBlip', name: 'Retro Blip', note: 'A5', duration: '32n'},
+        { id: 'retroBeep', name: 'Retro Beep', note: 'G5', duration: '16n'},
+        { id: 'retroStab', name: '8-Bit Stab', note: 'C4', duration: '16n' },
+        { id: 'deepSquare', name: 'Deep Square', note: 'C3', duration: '8n'},
+        { id: 'laser', name: 'Laser', note: 'G5', duration: '16n', special: 'pitchShift', pitchShift: -2400 },
+        { id: 'coinGet', name: 'Coin Get', note: 'E6', duration: '16n'},
+        { id: 'retroPowerUp', name: 'Power Up', note: ['C4', 'G4', 'C5', 'E5'], duration: '8n', special: 'sequence'},
+        { id: 'retroFanfare', name: 'Retro Fanfare', note: ['C5', 'G5', 'C6'], duration: '8n', special: 'sequence'},
+        { id: 'retroExplosion', name: '8-Bit Explosion', note: 'C2', duration: '8n', special: 'noise'},
+        { id: 'retroJump', name: 'Retro Jump', note: 'C5', duration: '8n', special: 'pitchBendUp'},
+    ];
+    
     // --- DATA PERSISTENCE ---
     const saveState = () => {
         try {
             const stateToSave = {
                 settings: state.settings,
-                sounds: state.sounds,
-                presets: state.presets
+                presets: state.presets,
+                sounds: state.sounds
             };
             localStorage.setItem('tabataTimerState', JSON.stringify(stateToSave));
         } catch (e) {
@@ -311,12 +297,11 @@ document.addEventListener('DOMContentLoaded', () => {
             const savedStateJSON = localStorage.getItem('tabataTimerState');
             if (savedStateJSON) {
                 const savedState = JSON.parse(savedStateJSON);
-                // Deep merge to handle nested objects
                 state = {
                     ...defaultState,
                     settings: { ...defaultState.settings, ...savedState.settings },
-                    sounds: { ...defaultState.sounds, ...savedState.sounds },
-                    presets: { ...defaultState.presets, ...savedState.presets }
+                    presets: { ...defaultState.presets, ...savedState.presets },
+                    sounds: { ...defaultState.sounds, ...savedState.sounds }
                 };
             } else {
                 state = JSON.parse(JSON.stringify(defaultState)); // Deep copy
@@ -329,69 +314,39 @@ document.addEventListener('DOMContentLoaded', () => {
     
     // --- DYNAMIC UI GENERATION ---
     const generateSoundInputs = () => {
-        soundsPanel.querySelector('.space-y-4').innerHTML = `
-            <div>
-                <label for="pre-start-sound" class="block text-sm font-medium text-gray-300">Pre-Start Beep</label>
+        const container = document.getElementById('sound-inputs-container');
+        container.innerHTML = ''; // Clear existing
+        
+        const soundSettingsMap = [
+            { key: 'preStart', label: 'Pre-Start Countdown' },
+            { key: 'workStart', label: 'Work Start' },
+            { key: 'restStart', label: 'Rest Start' },
+            { key: 'setEnd', label: 'Set Transition' },
+            { key: 'workoutComplete', label: 'Workout Complete' }
+        ];
+
+        const optionsHTML = soundOptions.map(opt => `<option value="${opt.id}">${opt.name}</option>`).join('');
+
+        soundSettingsMap.forEach(setting => {
+            const inputGroup = document.createElement('div');
+            inputGroup.innerHTML = `
+                <label for="${setting.key}-sound" class="block text-sm font-medium text-gray-300">${setting.label}</label>
                 <div class="flex items-center gap-2 mt-1">
-                    <select id="pre-start-sound" class="sound-select block w-full bg-gray-700 border border-gray-600 rounded-md shadow-sm py-2 px-3 text-white focus:outline-none focus:ring-blue-500 focus:border-blue-500">
-                        <option value="beep">Beep</option>
-                        <option value="click">Click</option>
-                        <option value="wood-block">Wood Block</option>
+                    <select id="${setting.key}-sound" data-sound-key="${setting.key}" class="sound-select block w-full bg-gray-700 border border-gray-600 rounded-md shadow-sm py-2 px-3 text-white focus:outline-none focus:ring-blue-500 focus:border-blue-500">
+                        ${optionsHTML}
                     </select>
-                    <button data-sound-for="pre-start-sound" class="test-sound-btn p-2 bg-gray-600 hover:bg-gray-500 rounded-md btn flex-shrink-0"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="w-5 h-5 text-white"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg></button>
+                    <button data-sound-select-id="${setting.key}-sound" class="test-sound-btn p-2 bg-gray-600 hover:bg-gray-500 rounded-md btn flex-shrink-0">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="w-5 h-5 text-white"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>
+                    </button>
                 </div>
-            </div>
-            <div>
-                <label for="work-start-sound" class="block text-sm font-medium text-gray-300">Work Start</label>
-                <div class="flex items-center gap-2 mt-1">
-                    <select id="work-start-sound" class="sound-select block w-full bg-gray-700 border border-gray-600 rounded-md shadow-sm py-2 px-3 text-white focus:outline-none focus:ring-blue-500 focus:border-blue-500">
-                        <option value="mellow-marimba">Mellow Marimba</option>
-                        <option value="whistle">Whistle</option>
-                        <option value="chime">Chime</option>
-                        <option value="warm-pad-start">Warm Pad (Start)</option>
-                        <option value="gentle-kalimba">Gentle Kalimba</option>
-                    </select>
-                    <button data-sound-for="work-start-sound" class="test-sound-btn p-2 bg-gray-600 hover:bg-gray-500 rounded-md btn flex-shrink-0"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="w-5 h-5 text-white"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg></button>
-                </div>
-            </div>
-            <div>
-                <label for="work-end-sound" class="block text-sm font-medium text-gray-300">Work End / Rest Start</label>
-                <div class="flex items-center gap-2 mt-1">
-                    <select id="work-end-sound" class="sound-select block w-full bg-gray-700 border border-gray-600 rounded-md shadow-sm py-2 px-3 text-white focus:outline-none focus:ring-blue-500 focus:border-blue-500">
-                        <option value="chime">Chime</option>
-                        <option value="whistle">Whistle</option>
-                        <option value="warm-pad-end">Warm Pad (End)</option>
-                        <option value="mellow-marimba">Mellow Marimba</option>
-                        <option value="gentle-kalimba">Gentle Kalimba</option>
-                    </select>
-                    <button data-sound-for="work-end-sound" class="test-sound-btn p-2 bg-gray-600 hover:bg-gray-500 rounded-md btn flex-shrink-0"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="w-5 h-5 text-white"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg></button>
-                </div>
-            </div>
-            <div>
-                <label for="set-end-sound" class="block text-sm font-medium text-gray-300">Set Transition</label>
-                <div class="flex items-center gap-2 mt-1">
-                    <select id="set-end-sound" class="sound-select block w-full bg-gray-700 border border-gray-600 rounded-md shadow-sm py-2 px-3 text-white focus:outline-none focus:ring-blue-500 focus:border-blue-500">
-                        <option value="complete">Complete</option>
-                        <option value="harp">Harp</option>
-                        <option value="fanfare">Fanfare</option>
-                    </select>
-                    <button data-sound-for="set-end-sound" class="test-sound-btn p-2 bg-gray-600 hover:bg-gray-500 rounded-md btn flex-shrink-0"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="w-5 h-5 text-white"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg></button>
-                </div>
-            </div>
-            <div>
-                <label for="workout-complete-sound" class="block text-sm font-medium text-gray-300">Workout Complete</label>
-                <div class="flex items-center gap-2 mt-1">
-                    <select id="workout-complete-sound" class="sound-select block w-full bg-gray-700 border border-gray-600 rounded-md shadow-sm py-2 px-3 text-white focus:outline-none focus:ring-blue-500 focus:border-blue-500">
-                        <option value="triumph">Triumph</option>
-                        <option value="success-chime">Success Chime</option>
-                        <option value="fanfare">Fanfare</option>
-                    </select>
-                    <button data-sound-for="workout-complete-sound" class="test-sound-btn p-2 bg-gray-600 hover:bg-gray-500 rounded-md btn flex-shrink-0"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="w-5 h-5 text-white"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg></button>
-                </div>
-            </div>
-        `;
-        soundsPanel.querySelectorAll('.sound-select').forEach(sel => sel.addEventListener('change', handleSoundChange));
-        soundsPanel.querySelectorAll('.test-sound-btn').forEach(btn => btn.addEventListener('click', handleTestSound));
+            `;
+            const selectEl = inputGroup.querySelector('select');
+            selectEl.value = state.sounds[setting.key]; // Set the saved value
+            container.appendChild(inputGroup);
+        });
+
+        document.querySelectorAll('.sound-select').forEach(sel => sel.addEventListener('change', handleSoundChange));
+        document.querySelectorAll('.test-sound-btn').forEach(btn => btn.addEventListener('click', handleTestSound));
     };
 
     const generateExerciseInputs = () => {
@@ -413,6 +368,42 @@ document.addEventListener('DOMContentLoaded', () => {
     };
 
     // --- CORE FUNCTIONS ---
+    const playSound = (soundId) => {
+        if (Tone.context.state !== 'running') {
+            Tone.start();
+        }
+
+        const synth = synths[soundId];
+        if (!synth) { return; }
+
+        const soundDetails = soundOptions.find(s => s.id === soundId);
+        if (!soundDetails) return;
+
+        const now = Tone.now();
+        const { note, duration, special, pitchShift } = soundDetails;
+        
+        if (special === 'pitchShift' && synth.frequency) {
+             synth.frequency.value = note;
+             synth.frequency.linearRampToValueAtTime(synth.frequency.value + pitchShift, now + 0.1);
+             synth.triggerAttackRelease(note, duration, now);
+        } else if (special === 'pitchBendUp' && synth.frequency) {
+            synth.frequency.setValueAtTime(note, now);
+            synth.frequency.linearRampToValueAtTime(Tone.Frequency(note).toFrequency() * 1.5, now + 0.1);
+            synth.triggerAttackRelease(note, duration, now);
+        } else if (special === 'sequence') {
+            let time = now;
+            note.forEach(n => {
+                synth.triggerAttackRelease(n, duration, time);
+                time += Tone.Time(duration).toSeconds();
+            });
+        } else if (special === 'noise') {
+            synth.triggerAttackRelease(duration, now);
+        }
+        else {
+            synth.triggerAttackRelease(note, duration, now);
+        }
+    };
+    
     const formatTime = (seconds) => {
         const mins = Math.floor(seconds / 60).toString().padStart(2, '0');
         const secs = (seconds % 60).toString().padStart(2, '0');
@@ -427,7 +418,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const sets = parseInt(s.numSets) || 0;
         const setRest = parseInt(s.restBetweenSets) || 0;
 
-        const setDuration = (work * rounds) + (rest * rounds);
+        const setDuration = (work * rounds) + (rest * (rounds > 1 ? rounds - 1 : 0));
         const totalDuration = (setDuration * sets) + (setRest * (sets > 1 ? sets - 1 : 0));
 
         setDurationDisplay.textContent = formatTime(setDuration);
@@ -514,7 +505,7 @@ document.addEventListener('DOMContentLoaded', () => {
         } else if (state.phase === 'work') {
             state.phase = 'rest';
             state.currentTime = state.settings.restTime;
-            playSound(state.sounds.workEnd);
+            playSound(state.sounds.restStart);
         } else if (state.phase === 'rest') {
             if (state.currentRound >= state.settings.roundsPerSet) {
                 if (state.currentSet >= state.settings.numSets) {
@@ -629,31 +620,37 @@ document.addEventListener('DOMContentLoaded', () => {
         saveState();
     };
 
-    const handleSoundChange = () => {
-        state.sounds.preStart = document.getElementById('pre-start-sound').value;
-        state.sounds.workStart = document.getElementById('work-start-sound').value;
-        state.sounds.workEnd = document.getElementById('work-end-sound').value;
-        state.sounds.setEnd = document.getElementById('set-end-sound').value;
-        state.sounds.workoutComplete = document.getElementById('workout-complete-sound').value;
+    const handleSoundChange = (event) => {
+        const selectEl = event.currentTarget;
+        const soundKey = selectEl.dataset.soundKey;
+        state.sounds[soundKey] = selectEl.value;
         saveState();
+    };
+
+    const handleTestSound = (event) => {
+        const button = event.currentTarget;
+        const selectId = button.dataset.soundSelectId;
+        const selectEl = document.getElementById(selectId);
+        if (selectEl) {
+            playSound(selectEl.value);
+        }
     };
 
     const applyPreset = (presetName) => {
         const presetSettings = state.presets[presetName];
         if (!presetSettings) return;
 
-        // FIXED: Merge preset settings with existing settings to preserve keys like preStartDelay
         state.settings = { 
             ...state.settings, 
             ...JSON.parse(JSON.stringify(presetSettings)) 
         };
         
-        updateUIFromState(); // Updates all inputs and generates new exercise fields
-        handleSettingsChange(); // Recalculates durations and saves
+        updateUIFromState();
+        handleSettingsChange();
     };
 
     const savePreset = (presetName) => {
-        state.presets[presetName] = JSON.parse(JSON.stringify(state.settings)); // Deep copy
+        state.presets[presetName] = JSON.parse(JSON.stringify(state.settings));
         saveState();
         togglePresetSaveMode(false);
     };
@@ -699,15 +696,6 @@ document.addEventListener('DOMContentLoaded', () => {
         settingsPanel.classList.remove('hidden');
     };
 
-    const handleTestSound = (event) => {
-        const btn = event.currentTarget;
-        const selectId = btn.dataset.soundFor;
-        const selectEl = document.getElementById(selectId);
-        if (selectEl) {
-            playSound(selectEl.value);
-        }
-    };
-
     const handleStepper = (event) => {
         const button = event.currentTarget;
         const action = button.dataset.action;
@@ -740,13 +728,8 @@ document.addEventListener('DOMContentLoaded', () => {
         numSetsInput.value = state.settings.numSets;
         restBetweenSetsInput.value = state.settings.restBetweenSets;
         
-        document.getElementById('pre-start-sound').value = state.sounds.preStart;
-        document.getElementById('work-start-sound').value = state.sounds.workStart;
-        document.getElementById('work-end-sound').value = state.sounds.workEnd;
-        document.getElementById('set-end-sound').value = state.sounds.setEnd;
-        document.getElementById('workout-complete-sound').value = state.sounds.workoutComplete;
-        
         generateExerciseInputs();
+        generateSoundInputs();
         updateDurations();
     };
 
@@ -782,7 +765,6 @@ document.addEventListener('DOMContentLoaded', () => {
     savePresetModeBtn.addEventListener('click', () => togglePresetSaveMode(!isSavingPreset));
 
     // --- INITIALIZATION ---
-    generateSoundInputs(); // Build the sound panel first
     loadState();
     updateUIFromState();
     reset();
