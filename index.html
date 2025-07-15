@@ -268,13 +268,15 @@ document.addEventListener('DOMContentLoaded', () => {
             const savedStateJSON = localStorage.getItem('tabataTimerState');
             if (savedStateJSON) {
                 const savedState = JSON.parse(savedStateJSON);
-                // Deep merge to prevent issues with new default properties
-                state = {
-                    ...JSON.parse(JSON.stringify(defaultState)),
-                    settings: { ...defaultState.settings, ...savedState.settings },
-                    presets: { ...defaultState.presets, ...savedState.presets },
-                    sounds: { ...defaultState.sounds, ...savedState.sounds }
-                };
+                // Start with a fresh copy of the defaults
+                state = JSON.parse(JSON.stringify(defaultState));
+                // Overwrite with saved data where it exists
+                state.settings = { ...state.settings, ...savedState.settings };
+                state.sounds = { ...state.sounds, ...savedState.sounds };
+                // IMPORTANT: Use saved presets IF they exist, otherwise keep the defaults. Do NOT merge.
+                if (savedState.presets) {
+                    state.presets = savedState.presets;
+                }
             } else {
                 state = JSON.parse(JSON.stringify(defaultState)); // Deep copy
             }
