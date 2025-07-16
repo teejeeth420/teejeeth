@@ -114,20 +114,10 @@
             
             <button id="save-preset-mode-btn" class="w-full bg-yellow-600 hover:bg-yellow-700 text-white font-bold py-2 px-3 rounded-lg text-base btn mb-4">Save as Preset</button>
             
-            <div class="grid grid-cols-3 gap-2">
-                <button id="exercise-settings-btn" class="w-full bg-gray-600 hover:bg-gray-500 text-white font-bold py-3 px-4 rounded-lg text-lg btn">Moves</button>
-                <button id="sounds-settings-btn" class="w-full bg-gray-600 hover:bg-gray-500 text-white font-bold py-3 px-4 rounded-lg text-lg btn">Sounds</button>
-                <button id="close-settings-btn" class="w-full bg-blue-500 hover:bg-blue-600 text-white font-bold py-3 px-4 rounded-lg text-lg btn">Done</button>
+            <div class="grid grid-cols-2 gap-4">
+                <button id="exercise-settings-btn" class="w-full bg-gray-600 hover:bg-gray-500 text-white font-bold py-3 px-4 rounded-lg text-lg btn">Exercises</button>
+                <button id="close-settings-btn" class="w-full bg-blue-500 hover:bg-blue-600 text-white font-bold py-3 px-4 rounded-lg text-lg btn col-span-1">Done</button>
             </div>
-        </div>
-
-        <!-- Sounds Panel (Initially Hidden) -->
-        <div id="sounds-panel" class="bg-gray-800 rounded-2xl shadow-2xl p-6 hidden panel">
-            <h3 class="text-2xl font-bold mb-6 text-center">Sound Settings</h3>
-            <div id="sound-inputs-container" class="space-y-4">
-                <!-- Sound options will be dynamically generated here -->
-            </div>
-            <button id="back-to-settings-btn-from-sounds" class="mt-6 w-full bg-blue-500 hover:bg-blue-600 text-white font-bold py-3 px-4 rounded-lg text-lg btn">Back</button>
         </div>
         
         <!-- Exercise Settings Panel (Initially Hidden) -->
@@ -147,7 +137,6 @@ document.addEventListener('DOMContentLoaded', () => {
     const elements = {
         timerContainer: getElem('timer-container'),
         settingsPanel: getElem('settings-panel'),
-        soundsPanel: getElem('sounds-panel'),
         exerciseSettingsPanel: getElem('exercise-settings-panel'),
         timerDisplayContent: getElem('timer-display-content'),
         completionMessage: getElem('completion-message'),
@@ -163,9 +152,7 @@ document.addEventListener('DOMContentLoaded', () => {
         resetBtn: getElem('reset-btn'),
         settingsBtn: getElem('settings-btn'),
         closeSettingsBtn: getElem('close-settings-btn'),
-        soundsSettingsBtn: getElem('sounds-settings-btn'),
         exerciseSettingsBtn: getElem('exercise-settings-btn'),
-        backToSettingsBtnFromSounds: getElem('back-to-settings-btn-from-sounds'),
         backToSettingsBtnFromExercises: getElem('back-to-settings-btn-from-exercises'),
         setDurationDisplay: getElem('set-duration-display'),
         totalDurationDisplay: getElem('total-duration-display'),
@@ -173,7 +160,6 @@ document.addEventListener('DOMContentLoaded', () => {
         presetHeading: getElem('preset-heading'),
         savePresetModeBtn: getElem('save-preset-mode-btn'),
         presetButtonsContainer: getElem('preset-buttons-container'),
-        soundInputsContainer: getElem('sound-inputs-container'),
         exerciseInputsContainer: getElem('exercise-inputs-container'),
     };
 
@@ -181,16 +167,14 @@ document.addEventListener('DOMContentLoaded', () => {
     let state = {}; // Will be populated by loadState
     let isSavingPreset = false;
 
-    // --- AUDIO FILE CONFIGURATION ---
-    // IMPORTANT: The 'path' must match the folder and filename in your repository.
-    const soundOptions = [
-        { id: 'work',      name: 'Work Start',      path: 'sound/work.mp3' },
-        { id: 'rest',      name: 'Rest Start',      path: 'sound/rest.mp3' },
-        { id: 'countdown', name: 'Countdown Beep',  path: 'sound/countdown.mp3' },
-        { id: 'setEnd',    name: 'Set Transition',  path: 'sound/set_end.mp3' },
-        { id: 'finish',    name: 'Workout Finish',  path: 'sound/finish.mp3' },
-        { id: 'silent',    name: 'Silent',          path: '' } // Keep this for a silent option
-    ];
+    // --- AUDIO FILE MAPPING ---
+    const soundFiles = {
+        work: 'sound/work.mp3',
+        rest: 'sound/rest.mp3',
+        countdown: 'sound/countdown.mp3',
+        setEnd: 'sound/set_end.mp3',
+        finish: 'sound/finish.mp3'
+    };
 
     const defaultState = {
         timer: null,
@@ -208,6 +192,7 @@ document.addEventListener('DOMContentLoaded', () => {
             preStartDelay: 3,
             exercises: ["High Knees", "Burpees", "Jumping Jacks", "Mountain Climbers", "Jump Rope", "Tuck Jumps", "Skater Jumps", "Box Jumps", "Lunge Jumps", "Sprints"]
         },
+        // This maps a phase to a sound type from the soundFiles object
         sounds: {
             preStart: 'countdown',
             workStart: 'work',
@@ -235,10 +220,10 @@ document.addEventListener('DOMContentLoaded', () => {
     // --- DATA PERSISTENCE ---
     const saveState = () => {
         try {
+            // Only save settings and presets, sounds are now fixed.
             const stateToSave = {
                 settings: state.settings,
                 presets: state.presets,
-                sounds: state.sounds
             };
             localStorage.setItem('tabataTimerState', JSON.stringify(stateToSave));
         } catch (e) {
@@ -263,21 +248,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 // Overwrite default presets with saved ones, if they exist
                 if (savedState.presets) {
                     state.presets = savedState.presets;
-                }
-
-                // Carefully merge sounds to avoid corruption from old saved states
-                if (savedState.sounds) {
-                    const newSounds = { ...defaultState.sounds };
-                    // Only update a sound if it exists in the saved state and is a valid option
-                    for (const key in newSounds) {
-                        if (Object.hasOwnProperty.call(savedState.sounds, key) && savedState.sounds[key]) {
-                            // Check if the saved sound is actually in our list of available sounds
-                            if (soundOptions.some(option => option.id === savedState.sounds[key])) {
-                                newSounds[key] = savedState.sounds[key];
-                            }
-                        }
-                    }
-                    state.sounds = newSounds;
                 }
             }
         } catch (e) {
@@ -333,37 +303,6 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     };
 
-    const generateSoundInputs = () => {
-        const container = elements.soundInputsContainer;
-        container.innerHTML = '';
-        const soundSettingsMap = [
-            { key: 'preStart', label: 'Pre-Start Countdown' },
-            { key: 'workStart', label: 'Work Start' },
-            { key: 'restStart', label: 'Rest Start' },
-            { key: 'setEnd', label: 'Set Transition' },
-            { key: 'workoutComplete', label: 'Workout Complete' }
-        ];
-        const optionsHTML = soundOptions.map(opt => `<option value="${opt.id}">${opt.name}</option>`).join('');
-
-        soundSettingsMap.forEach(setting => {
-            const inputGroup = document.createElement('div');
-            inputGroup.innerHTML = `
-                <label for="${setting.key}-sound" class="block text-sm font-medium text-gray-300">${setting.label}</label>
-                <div class="flex items-center gap-2 mt-1">
-                    <select id="${setting.key}-sound" data-sound-key="${setting.key}" class="sound-select block w-full bg-gray-700 border border-gray-600 rounded-md shadow-sm py-2 px-3 text-white focus:outline-none focus:ring-blue-500 focus:border-blue-500">
-                        ${optionsHTML}
-                    </select>
-                    <button data-sound-select-id="${setting.key}-sound" class="test-sound-btn p-2 bg-gray-600 hover:bg-gray-500 rounded-md btn flex-shrink-0" aria-label="Test Sound">
-                        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="w-5 h-5 text-white"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>
-                    </button>
-                </div>
-            `;
-            const selectEl = inputGroup.querySelector('select');
-            selectEl.value = state.sounds[setting.key];
-            container.appendChild(inputGroup);
-        });
-    };
-
     const generateExerciseInputs = () => {
         const container = elements.exerciseInputsContainer;
         container.innerHTML = '';
@@ -382,14 +321,11 @@ document.addEventListener('DOMContentLoaded', () => {
     };
 
     // --- CORE TIMER FUNCTIONS ---
-    const playSound = (soundId) => {
-        const soundDetails = soundOptions.find(s => s.id === soundId);
-        // Do not play if the sound is not found or if the path is empty (for 'Silent')
-        if (!soundDetails || !soundDetails.path) {
-            return;
-        }
+    const playSound = (soundType) => {
+        const path = soundFiles[soundType];
+        if (!path) return; // Don't play if no path is defined
 
-        const audio = new Audio(soundDetails.path);
+        const audio = new Audio(path);
         audio.play().catch(e => console.error("Error playing sound:", e)); // Add error handling
     };
     
@@ -569,7 +505,6 @@ document.addEventListener('DOMContentLoaded', () => {
         generateTimerInputs();
         generatePresetButtons();
         generateExerciseInputs();
-        generateSoundInputs();
         updateDurations();
         reset();
     };
@@ -619,25 +554,11 @@ document.addEventListener('DOMContentLoaded', () => {
         saveState();
     };
 
-    const handleSoundChange = (event) => {
-        const selectEl = event.currentTarget;
-        state.sounds[selectEl.dataset.soundKey] = selectEl.value;
-        saveState();
-    };
-
-    const handleTestSound = (event) => {
-        const button = event.target.closest('.test-sound-btn');
-        if (!button) return;
-        const selectEl = getElem(button.dataset.soundSelectId);
-        if (selectEl) { playSound(selectEl.value); }
-    };
-
     const applyPreset = (presetName) => {
         const presetSettings = state.presets[presetName];
         if (!presetSettings) return;
 
         // Create a clean settings object from the preset, taking only what we need.
-        // This prevents any old/stray data in the preset from corrupting the main settings.
         const cleanPresetSettings = {
             workTime: presetSettings.workTime,
             restTime: presetSettings.restTime,
@@ -648,7 +569,6 @@ document.addEventListener('DOMContentLoaded', () => {
         };
 
         // Now merge the clean preset into the current settings.
-        // This preserves things like preStartDelay from the current state.
         state.settings = { ...state.settings, ...cleanPresetSettings };
 
         updateUIFromState();
@@ -657,7 +577,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const savePreset = (presetName) => {
         // Create a clean object with only the properties that belong in a preset.
-        // This prevents accidentally saving other data like sound settings into a preset.
         const { workTime, restTime, roundsPerSet, numSets, restBetweenSets, exercises } = state.settings;
         const presetToSave = { workTime, restTime, roundsPerSet, numSets, restBetweenSets, exercises };
 
@@ -679,7 +598,7 @@ document.addEventListener('DOMContentLoaded', () => {
     };
 
     const showPanel = (panelToShow) => {
-        [elements.timerContainer, elements.settingsPanel, elements.soundsPanel, elements.exerciseSettingsPanel].forEach(panel => {
+        [elements.timerContainer, elements.settingsPanel, elements.exerciseSettingsPanel].forEach(panel => {
             panel.classList.toggle('hidden', panel !== panelToShow);
         });
     };
@@ -705,9 +624,7 @@ document.addEventListener('DOMContentLoaded', () => {
         elements.resetBtn.addEventListener('click', () => reset(true));
         elements.settingsBtn.addEventListener('click', () => showPanel(elements.settingsPanel));
         elements.closeSettingsBtn.addEventListener('click', () => showPanel(elements.timerContainer));
-        elements.soundsSettingsBtn.addEventListener('click', () => showPanel(elements.soundsPanel));
         elements.exerciseSettingsBtn.addEventListener('click', () => showPanel(elements.exerciseSettingsPanel));
-        elements.backToSettingsBtnFromSounds.addEventListener('click', () => showPanel(elements.settingsPanel));
         elements.backToSettingsBtnFromExercises.addEventListener('click', () => showPanel(elements.settingsPanel));
         elements.savePresetModeBtn.addEventListener('click', () => togglePresetSaveMode(!isSavingPreset));
 
@@ -718,12 +635,6 @@ document.addEventListener('DOMContentLoaded', () => {
         // Listen for 'input' for real-time updates
         elements.timerInputsContainer.addEventListener('input', e => {
             if (e.target.matches('.timer-setting-input')) handleSettingsChange(e);
-        });
-        elements.soundInputsContainer.addEventListener('change', e => {
-            if (e.target.matches('.sound-select')) handleSoundChange(e);
-        });
-        elements.soundInputsContainer.addEventListener('click', e => {
-            if (e.target.closest('.test-sound-btn')) handleTestSound(e);
         });
         elements.exerciseInputsContainer.addEventListener('input', e => {
             if (e.target.matches('.exercise-input')) handleExerciseInputChange(e);
