@@ -5,7 +5,6 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>beep boop timer</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.7.77/Tone.js"></script>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;900&display=swap" rel="stylesheet">
@@ -182,6 +181,17 @@ document.addEventListener('DOMContentLoaded', () => {
     let state = {}; // Will be populated by loadState
     let isSavingPreset = false;
 
+    // --- AUDIO FILE CONFIGURATION ---
+    // IMPORTANT: The 'path' must match the folder and filename in your repository.
+    const soundOptions = [
+        { id: 'work',      name: 'Work Start',      path: 'sound/work.mp3' },
+        { id: 'rest',      name: 'Rest Start',      path: 'sound/rest.mp3' },
+        { id: 'countdown', name: 'Countdown Beep',  path: 'sound/countdown.mp3' },
+        { id: 'setEnd',    name: 'Set Transition',  path: 'sound/set_end.mp3' },
+        { id: 'finish',    name: 'Workout Finish',  path: 'sound/finish.mp3' },
+        { id: 'silent',    name: 'Silent',          path: '' } // Keep this for a silent option
+    ];
+
     const defaultState = {
         timer: null,
         status: 'idle', // 'idle', 'running', 'paused'
@@ -199,11 +209,11 @@ document.addEventListener('DOMContentLoaded', () => {
             exercises: ["High Knees", "Burpees", "Jumping Jacks", "Mountain Climbers", "Jump Rope", "Tuck Jumps", "Skater Jumps", "Box Jumps", "Lunge Jumps", "Sprints"]
         },
         sounds: {
-            preStart: 'retroBlip',
-            workStart: 'retroJump',
-            restStart: 'retroLand',
-            setEnd: 'retroFanfare',
-            workoutComplete: 'retroPowerUp'
+            preStart: 'countdown',
+            workStart: 'work',
+            restStart: 'rest',
+            setEnd: 'setEnd',
+            workoutComplete: 'finish'
         },
         presets: {
             "Main": { workTime: 35, restTime: 35, roundsPerSet: 8, numSets: 4, restBetweenSets: 40, exercises: ["Landmine row", "Landmine press", "Landmine squat", "Kettlebell swings"] },
@@ -221,35 +231,6 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         }
     };
-
-    // --- AUDIO SYNTHESIS (Tone.js) ---
-    const synths = {
-        'retroBlip': new Tone.Synth({ oscillator: { type: 'square' }, envelope: { attack: 0.01, decay: 0.05, sustain: 0, release: 0.1 } }).toDestination(),
-        'retroBeep': new Tone.Synth({ oscillator: { type: 'triangle' }, envelope: { attack: 0.01, decay: 0.1, sustain: 0, release: 0.1 } }).toDestination(),
-        'retroStab': new Tone.Synth({ oscillator: { type: 'fatsquare', spread: 10 }, envelope: { attack: 0.01, decay: 0.2, sustain: 0.1, release: 0.2 } }).toDestination(),
-        'deepSquare': new Tone.Synth({ oscillator: { type: 'square' }, envelope: { attack: 0.01, decay: 0.3, sustain: 0.1, release: 0.2 } }).toDestination(),
-        'laser': new Tone.Synth({ oscillator: { type: 'sawtooth' }, envelope: { attack: 0.01, decay: 0.1, sustain: 0, release: 0.1 } }).toDestination(),
-        'coinGet': new Tone.Synth({ oscillator: { type: 'square' }, envelope: { attack: 0.01, decay: 0.2, sustain: 0, release: 0.1 } }).toDestination(),
-        'retroPowerUp': new Tone.PolySynth(Tone.Synth, { oscillator: { type: 'square' } }).toDestination(),
-        'retroFanfare': new Tone.PolySynth(Tone.Synth, { oscillator: { type: 'triangle' } }).toDestination(),
-        'retroExplosion': new Tone.NoiseSynth({ noise: { type: "white" }, envelope: { attack: 0.005, decay: 0.2, sustain: 0 } }).toDestination(),
-        'retroJump': new Tone.Synth({ oscillator: { type: 'triangle' } }).toDestination(),
-        'retroLand': new Tone.Synth({ oscillator: { type: 'triangle' } }).toDestination(),
-    };
-
-    const soundOptions = [
-        { id: 'retroBlip', name: 'Retro Blip', note: 'A5', duration: '32n'},
-        { id: 'retroBeep', name: 'Retro Beep', note: 'G5', duration: '16n'},
-        { id: 'retroStab', name: '8-Bit Stab', note: 'C4', duration: '16n' },
-        { id: 'deepSquare', name: 'Deep Square', note: 'C3', duration: '8n'},
-        { id: 'laser', name: 'Laser', note: 'G5', duration: '16n', special: 'pitchShift', pitchShift: -2400 },
-        { id: 'coinGet', name: 'Coin Get', note: 'E6', duration: '16n'},
-        { id: 'retroPowerUp', name: 'Power Up', note: ['C4', 'G4', 'C5', 'E5'], duration: '8n', special: 'sequence'},
-        { id: 'retroFanfare', name: 'Retro Fanfare', note: ['C5', 'G5', 'C6'], duration: '8n', special: 'sequence'},
-        { id: 'retroExplosion', name: '8-Bit Explosion', note: 'C2', duration: '8n', special: 'noise'},
-        { id: 'retroJump', name: 'Retro Jump', note: 'C5', duration: '8n', special: 'pitchBendUp'},
-        { id: 'retroLand', name: 'Retro Land', note: 'G5', duration: '8n', special: 'pitchBendDown'},
-    ];
     
     // --- DATA PERSISTENCE ---
     const saveState = () => {
@@ -402,33 +383,14 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // --- CORE TIMER FUNCTIONS ---
     const playSound = (soundId) => {
-        if (Tone.context.state !== 'running') { Tone.start(); }
-        const synth = synths[soundId];
         const soundDetails = soundOptions.find(s => s.id === soundId);
-        if (!synth || !soundDetails) return;
-
-        const now = Tone.now();
-        const { note, duration, special, pitchShift } = soundDetails;
-        
-        if (special === 'pitchShift' && synth.frequency) {
-             synth.frequency.value = note;
-             synth.frequency.linearRampToValueAtTime(synth.frequency.value + pitchShift, now + 0.1);
-             synth.triggerAttackRelease(note, duration, now);
-        } else if (special === 'pitchBendUp' && synth.frequency) {
-            synth.frequency.setValueAtTime(Tone.Frequency(note).toFrequency() * 0.75, now);
-            synth.frequency.linearRampToValueAtTime(Tone.Frequency(note).toFrequency() * 1.5, now + 0.1);
-            synth.triggerAttackRelease(note, duration, now);
-        } else if (special === 'pitchBendDown' && synth.frequency) {
-            synth.frequency.setValueAtTime(Tone.Frequency(note).toFrequency() * 1.5, now);
-            synth.frequency.linearRampToValueAtTime(Tone.Frequency(note).toFrequency() * 0.75, now + 0.1);
-            synth.triggerAttackRelease(note, duration, now);
-        } else if (special === 'sequence') {
-            synth.triggerAttackRelease(note, duration, now);
-        } else if (special === 'noise') {
-            synth.triggerAttackRelease(duration, now);
-        } else {
-            synth.triggerAttackRelease(note, duration, now);
+        // Do not play if the sound is not found or if the path is empty (for 'Silent')
+        if (!soundDetails || !soundDetails.path) {
+            return;
         }
+
+        const audio = new Audio(soundDetails.path);
+        audio.play().catch(e => console.error("Error playing sound:", e)); // Add error handling
     };
     
     const formatTime = (seconds) => {
@@ -505,8 +467,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const start = () => {
         if (state.status === 'running') return;
-        if (Tone.context.state !== 'running') { Tone.start(); }
-
+        
         if (state.status === 'idle' || state.phase === 'complete') {
             reset(false); // Soft reset without full UI update
             state.phase = 'prepare';
